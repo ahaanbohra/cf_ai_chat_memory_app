@@ -9,29 +9,8 @@ import type { Chat } from "./server";
 import { getCurrentAgent } from "agents";
 import { scheduleSchema } from "agents/schedule";
 
-/**
- * Weather information tool that requires human confirmation
- * When invoked, this will present a confirmation dialog to the user
- */
-const getWeatherInformation = tool({
-  description: "show the weather in a given city to the user",
-  inputSchema: z.object({ city: z.string() })
-  // Omitting execute function makes this tool require human confirmation
-});
-
-/**
- * Local time tool that executes automatically
- * Since it includes an execute function, it will run without user confirmation
- * This is suitable for low-risk operations that don't need oversight
- */
-const getLocalTime = tool({
-  description: "get the local time for a specified location",
-  inputSchema: z.object({ location: z.string() }),
-  execute: async ({ location }) => {
-    console.log(`Getting local time for ${location}`);
-    return "10am";
-  }
-});
+// Removed dummy tools - this is a general conversational chatbot
+// The LLM (Llama 3.3) will answer questions naturally using its knowledge
 
 const scheduleTask = tool({
   description: "A tool to schedule a task to be executed at a later time",
@@ -110,11 +89,9 @@ const cancelScheduledTask = tool({
 
 /**
  * Export all available tools
- * These will be provided to the AI model to describe available capabilities
+ * Keeping only scheduling tools for workflow/coordination requirement
  */
 export const tools = {
-  getWeatherInformation,
-  getLocalTime,
   scheduleTask,
   getScheduledTasks,
   cancelScheduledTask
@@ -126,8 +103,5 @@ export const tools = {
  * Each function here corresponds to a tool above that doesn't have an execute function
  */
 export const executions = {
-  getWeatherInformation: async ({ city }: { city: string }) => {
-    console.log(`Getting weather information for ${city}`);
-    return `The weather in ${city} is sunny`;
-  }
+  // No confirmation-required tools currently
 };

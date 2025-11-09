@@ -1,7 +1,5 @@
 import { routeAgentRequest, type Schedule } from "agents";
 
-import { getSchedulePrompt } from "agents/schedule";
-
 import { AIChatAgent } from "agents/ai-chat-agent";
 import {
   generateId,
@@ -13,17 +11,9 @@ import {
   createUIMessageStreamResponse,
   type ToolSet
 } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { createWorkersAI } from "workers-ai-provider";
 import { processToolCalls, cleanupMessages } from "./utils";
 import { tools, executions } from "./tools";
-// import { env } from "cloudflare:workers";
-
-const model = openai("gpt-4o-2024-11-20");
-// Cloudflare AI Gateway
-// const openai = createOpenAI({
-//   apiKey: env.OPENAI_API_KEY,
-//   baseURL: env.GATEWAY_BASE_URL,
-// });
 
 /**
  * Chat Agent implementation that handles real-time AI chat interactions
@@ -40,11 +30,13 @@ export class Chat extends AIChatAgent<Env> {
     //   "https://path-to-mcp-server/sse"
     // );
 
-    // Collect all tools, including MCP tools
-    const allTools = {
-      ...tools,
-      ...this.mcp.getAITools()
-    };
+    // Initialize Workers AI with Llama 3.3
+    const workersai = createWorkersAI({ binding: this.env.AI });
+    const model = workersai("@cf/meta/llama-3.3-70b-instruct-fp8-fast");
+
+    // Simple conversational chatbot - no specialized tools needed
+    // The LLM answers all questions using its built-in knowledge
+    const allTools = {};
 
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
@@ -61,12 +53,15 @@ export class Chat extends AIChatAgent<Env> {
         });
 
         const result = streamText({
-          system: `You are a helpful assistant that can do various tasks... 
+          system: `You are a helpful and friendly AI assistant. You can answer questions on a wide variety of topics including history, science, math, general knowledge, and more. Be conversational, clear, and helpful in your responses.
 
-${getSchedulePrompt({ date: new Date() })}
+When engaging with users:
+- Answer questions naturally and conversationally
+- Be concise but informative
+- If you don't know something, be honest about it
+- Remember context from earlier in the conversation
 
-If the user asks to schedule a task, use the schedule tool to schedule the task.
-`,
+You can answer any general knowledge questions directly. You also have access to some tools for specific tasks like scheduling, but most questions you should answer using your own knowledge.`,
 
           messages: convertToModelMessages(processedMessages),
           model,
@@ -110,19 +105,12 @@ If the user asks to schedule a task, use the schedule tool to schedule the task.
  */
 export default {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext) {
-    const url = new URL(request.url);
+    // Check that AI binding is available
+    if (!env.AI) {
+      console.error("AI binding is not configured in wrangler.jsonc");
+      return new Response("AI binding not configured", { status: 500 });
+    }
 
-    if (url.pathname === "/check-open-ai-key") {
-      const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
-      return Response.json({
-        success: hasOpenAIKey
-      });
-    }
-    if (!process.env.OPENAI_API_KEY) {
-      console.error(
-        "OPENAI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"
-      );
-    }
     return (
       // Route the request to our agent or return 404 if not found
       (await routeAgentRequest(request, env)) ||
